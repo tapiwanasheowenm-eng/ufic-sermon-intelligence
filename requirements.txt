@@ -1,8 +1,7 @@
-yt-dlp
-ffmpeg-python
-pandas
-streamlit
-sentence-transformers
-faiss-cpu
+streamlit==1.32.2
+altair==4.2.2
 pandas
 numpy
+faiss-cpu
+sentence-transformers
+scikit-learn
