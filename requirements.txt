@@ -1,0 +1,8 @@
+yt-dlp
+ffmpeg-python
+pandas
+streamlit
+sentence-transformers
+faiss-cpu
+pandas
+numpy
