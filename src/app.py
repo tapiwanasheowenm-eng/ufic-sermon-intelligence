@@ -4,9 +4,7 @@ import faiss
 import numpy as np
 from sentence_transformers import SentenceTransformer
 import re
-import os
 from collections import defaultdict
-from datetime import datetime
 
 # ---------------------------------------------------
 # PAGE CONFIG
@@ -18,7 +16,7 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------
-# GLOBAL CSS (Mobile Safe, Professional)
+# GLOBAL CSS FIX (FINAL STABLE VERSION)
 # ---------------------------------------------------
 st.markdown("""
 <style>
@@ -28,19 +26,45 @@ st.markdown("""
     background-color: #f4f0fa;
 }
 
-/* Force all labels black */
-label, .stSelectbox label, .stTextInput label {
+/* FORCE ALL TEXT BLACK */
+html, body, [class*="css"]  {
+    color: #000000 !important;
+}
+
+/* Navigation radio buttons */
+div[role="radiogroup"] label {
     color: #000000 !important;
     font-weight: 600 !important;
 }
 
-/* Force dropdown + input text black */
+/* Radio button text */
+div[role="radiogroup"] * {
+    color: #000000 !important;
+}
+
+/* Search inputs + dropdowns (PC + Mobile) */
+input, textarea {
+    color: #000000 !important;
+    background-color: #ffffff !important;
+    border: 2px solid #000000 !important;
+    border-radius: 6px !important;
+}
+
+/* Selectbox */
+div[data-baseweb="select"] {
+    background-color: #ffffff !important;
+    border: 2px solid #000000 !important;
+    border-radius: 6px !important;
+}
+
 div[data-baseweb="select"] * {
     color: #000000 !important;
 }
 
-input {
+/* Labels */
+label {
     color: #000000 !important;
+    font-weight: 600 !important;
 }
 
 /* Headers */
@@ -48,13 +72,13 @@ input {
     text-align: center;
     font-size: 34px;
     font-weight: 700;
-    color: #5e2b97;
+    color: #5e2b97 !important;
 }
 
 .subtitle {
     text-align: center;
     font-size: 16px;
-    color: #444444;
+    color: #444444 !important;
     margin-bottom: 25px;
 }
 
@@ -84,7 +108,7 @@ input {
 .footer {
     text-align: center;
     font-size: 13px;
-    color: #555;
+    color: #555 !important;
     margin-top: 40px;
 }
 
@@ -249,15 +273,6 @@ elif page == "📖 Scripture Explorer":
                 ▶ <a href="{youtube_url}" target="_blank">Watch Reference</a>
             </div>
             """, unsafe_allow_html=True)
-
-# ---------------------------------------------------
-# HIDDEN ADMIN ACCESS
-# ---------------------------------------------------
-query_params = st.query_params
-
-if query_params.get("admin") == "true":
-    st.markdown("## 🔐 Admin Dashboard")
-    st.write(f"Total Sermon Chunks Indexed: {len(metadata)}")
 
 # ---------------------------------------------------
 # FOOTER
