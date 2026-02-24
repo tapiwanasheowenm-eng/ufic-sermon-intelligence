@@ -16,7 +16,7 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------
-# CSS FIX (FINAL STABLE VERSION)
+# GLOBAL CSS FIX (FINAL STABLE VERSION)
 # ---------------------------------------------------
 st.markdown("""
 <style>
@@ -26,18 +26,23 @@ st.markdown("""
     background-color: #f4f0fa;
 }
 
-/* Force all text black */
+/* FORCE ALL TEXT BLACK */
 html, body, [class*="css"]  {
     color: #000000 !important;
 }
 
-/* Radio navigation */
+/* Navigation radio buttons */
 div[role="radiogroup"] label {
     color: #000000 !important;
     font-weight: 600 !important;
 }
 
-/* Inputs */
+/* Radio button text */
+div[role="radiogroup"] * {
+    color: #000000 !important;
+}
+
+/* Search inputs + dropdowns (PC + Mobile) */
 input, textarea {
     color: #000000 !important;
     background-color: #ffffff !important;
@@ -45,13 +50,7 @@ input, textarea {
     border-radius: 6px !important;
 }
 
-/* Enter key button color fix (mobile) */
-button {
-    background-color: #000000 !important;
-    color: #ffffff !important;
-}
-
-/* Select boxes */
+/* Selectbox */
 div[data-baseweb="select"] {
     background-color: #ffffff !important;
     border: 2px solid #000000 !important;
@@ -60,6 +59,12 @@ div[data-baseweb="select"] {
 
 div[data-baseweb="select"] * {
     color: #000000 !important;
+}
+
+/* Labels */
+label {
+    color: #000000 !important;
+    font-weight: 600 !important;
 }
 
 /* Headers */
@@ -143,52 +148,131 @@ page = st.radio(
 )
 
 # ---------------------------------------------------
-# SCRIPTURE EXPLORER (UPGRADED)
+# SEARCH PAGE
 # ---------------------------------------------------
-if page == "📖 Scripture Explorer":
+if page == "🔎 Search":
 
-    st.markdown("### Scripture Explorer")
+    query = st.text_input("Search sermon content")
 
-    # Build book → chapter mapping
-    scripture_map = defaultdict(lambda: defaultdict(list))
+    col1, col2, col3 = st.columns(3)
 
-    for item in metadata:
-        text = item["text"].lower()
+    with col1:
+        year_filter = st.selectbox("Year", ["All"] + sorted(list(set(m["year"] for m in metadata))))
 
-        # Find book mentions
-        book_match = re.findall(r"(genesis|exodus|leviticus|numbers|deuteronomy|joshua|judges|ruth|samuel|kings|chronicles|ezra|nehemiah|esther|job|psalms|proverbs|ecclesiastes|isaiah|jeremiah|ezekiel|daniel|hosea|joel|amos|obadiah|jonah|micah|nahum|habakkuk|zephaniah|haggai|zechariah|malachi|matthew|mark|luke|john|acts|romans|corinthians|galatians|ephesians|philippians|colossians|thessalonians|timothy|titus|philemon|hebrews|james|peter|jude|revelation)", text)
+    with col2:
+        month_filter = st.selectbox("Month", ["All"] + sorted(list(set(m["month"].title() for m in metadata))))
 
-        # Find chapter references like Genesis 1 or Genesis 1:3
-        chapter_match = re.findall(r"(genesis|exodus|leviticus|numbers|deuteronomy|matthew|mark|luke|john)\s+(\d+)", text)
+    with col3:
+        results_per_page = st.selectbox("Results", [5, 10, 20], index=0)
 
-        for book in book_match:
-            scripture_map[book.title()]["All"].append(item)
+    def highlight_text(text, keyword):
+        pattern = re.compile(re.escape(keyword), re.IGNORECASE)
+        return pattern.sub(lambda m: f"<span class='highlight'>{m.group()}</span>", text)
 
-        for book, chapter in chapter_match:
-            scripture_map[book.title()][chapter].append(item)
+    if query:
 
-    if scripture_map:
+        query_embedding = model.encode([query]).astype("float32")
+        D, I = index.search(query_embedding, 100)
 
-        selected_book = st.selectbox("Select Book", sorted(scripture_map.keys()))
+        filtered_results = []
 
-        chapter_options = sorted(scripture_map[selected_book].keys(), key=lambda x: (x!="All", x))
-        selected_chapter = st.selectbox("Select Chapter", chapter_options)
+        for idx in I[0]:
+            result = metadata[idx]
 
-        sermons = scripture_map[selected_book][selected_chapter]
+            if year_filter != "All" and result["year"] != year_filter:
+                continue
 
-        if sermons:
-            for sermon in sermons:
-                youtube_url = f"https://www.youtube.com/watch?v={sermon['youtube_id']}&t={int(sermon['start'])}s"
+            if month_filter != "All" and result["month"].title() != month_filter:
+                continue
+
+            text_lower = result["text"].lower()
+            query_lower = query.lower()
+
+            keyword_match = query_lower in text_lower
+            semantic_score = D[0][list(I[0]).index(idx)]
+
+            if keyword_match or semantic_score < 1.15:
+                filtered_results.append((result, semantic_score, keyword_match))
+
+        if not filtered_results:
+            st.warning("No relevant results found.")
+        else:
+            filtered_results = sorted(filtered_results, key=lambda x: (not x[2], x[1]))
+
+            st.markdown(f"### Showing {min(len(filtered_results), results_per_page)} relevant sermons")
+
+            for result, score, keyword_match in filtered_results[:results_per_page]:
+
+                highlighted_text = highlight_text(result["text"], query) if keyword_match else result["text"]
+
+                youtube_url = f"https://www.youtube.com/watch?v={result['youtube_id']}&t={int(result['start'])}s"
 
                 st.markdown(f"""
                 <div class="result-card">
-                    <b>{sermon['title']}</b><br>
-                    Date: {sermon['date']} | Event: {sermon['event']}<br><br>
-                    ▶ <a href="{youtube_url}" target="_blank">Watch Reference</a>
+                    <b>{result['title']}</b><br>
+                    Date: {result['date']} | Event: {result['event']}<br><br>
+                    ▶ <a href="{youtube_url}" target="_blank">Watch on YouTube (Start at {int(result['start'])}s)</a><br><br>
+                    📍 Timestamp: {round(result['start'],2)} sec<br><br>
+                    {highlighted_text}
                 </div>
                 """, unsafe_allow_html=True)
-        else:
-            st.warning("No sermons found for that chapter.")
+
+# ---------------------------------------------------
+# SERMON LIBRARY
+# ---------------------------------------------------
+elif page == "📚 Sermon Library":
+
+    st.markdown("### Sermon Archive")
+
+    grouped = defaultdict(list)
+
+    for item in metadata:
+        grouped[item["title"]].append(item)
+
+    for title, items in grouped.items():
+        sermon = items[0]
+        youtube_url = f"https://www.youtube.com/watch?v={sermon['youtube_id']}"
+
+        st.markdown(f"""
+        <div class="result-card">
+            <b>{title}</b><br>
+            Date: {sermon['date']} | Event: {sermon['event']}<br><br>
+            ▶ <a href="{youtube_url}" target="_blank">Watch Full Sermon</a>
+        </div>
+        """, unsafe_allow_html=True)
+
+# ---------------------------------------------------
+# SCRIPTURE EXPLORER
+# ---------------------------------------------------
+elif page == "📖 Scripture Explorer":
+
+    st.markdown("### Scripture Explorer")
+
+    scripture_map = defaultdict(list)
+
+    for item in metadata:
+        if "scriptures" in item:
+            for s in item["scriptures"]:
+                scripture_map[s].append(item)
+
+    selected_scripture = st.selectbox(
+        "Select Scripture",
+        ["Select"] + sorted(scripture_map.keys())
+    )
+
+    if selected_scripture != "Select":
+        sermons = scripture_map[selected_scripture]
+
+        for sermon in sermons:
+            youtube_url = f"https://www.youtube.com/watch?v={sermon['youtube_id']}&t={int(sermon['start'])}s"
+
+            st.markdown(f"""
+            <div class="result-card">
+                <b>{sermon['title']}</b><br>
+                Date: {sermon['date']} | Event: {sermon['event']}<br><br>
+                ▶ <a href="{youtube_url}" target="_blank">Watch Reference</a>
+            </div>
+            """, unsafe_allow_html=True)
 
 # ---------------------------------------------------
 # FOOTER
