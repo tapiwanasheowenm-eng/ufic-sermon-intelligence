@@ -2,7 +2,11 @@ streamlit==1.32.2
 faiss-cpu==1.13.2
 numpy==1.26.4
 pandas==2.3.3
-sentence-transformers==2.2.2
-torch==2.1.2+cpu
+
+torch==2.1.0+cpu
 --extra-index-url https://download.pytorch.org/whl/cpu
+
+transformers==4.36.2
+sentence-transformers==2.2.2
+
 python-dateutil==2.9.0.post0
