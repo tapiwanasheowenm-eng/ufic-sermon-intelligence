@@ -4,6 +4,7 @@ import faiss
 import numpy as np
 import re
 from collections import defaultdict
+from sentence_transformers import SentenceTransformer
 
 # ---------------------------------------------------
 # PAGE CONFIG
@@ -15,7 +16,7 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------
-# GLOBAL CSS FIX (FINAL STABLE VERSION)
+# GLOBAL CSS (UNCHANGED)
 # ---------------------------------------------------
 st.markdown("""
 <style>
@@ -89,8 +90,12 @@ st.markdown('<div class="main-title">UFIC Sermon Intelligence System</div>', uns
 st.markdown('<div class="subtitle">AI-Powered Sermon Navigation & Structured Study Assistant</div>', unsafe_allow_html=True)
 
 # ---------------------------------------------------
-# LOAD INDEX + METADATA (NO MODEL)
+# LOAD MODEL + INDEX (CPU ONLY)
 # ---------------------------------------------------
+@st.cache_resource
+def load_model():
+    return SentenceTransformer("all-MiniLM-L6-v2", device="cpu")
+
 @st.cache_resource
 def load_index():
     index = faiss.read_index("data/index/sermon_index.faiss")
@@ -98,6 +103,7 @@ def load_index():
         metadata = json.load(f)
     return index, metadata
 
+model = load_model()
 index, metadata = load_index()
 
 # ---------------------------------------------------
@@ -110,7 +116,7 @@ page = st.radio(
 )
 
 # ---------------------------------------------------
-# SEARCH PAGE
+# SEARCH PAGE (TRUE HYBRID)
 # ---------------------------------------------------
 if page == "🔎 Search":
 
@@ -133,15 +139,12 @@ if page == "🔎 Search":
 
     if query:
 
-        # FAISS expects float32 vector of same dimension as index
-        # We simulate semantic search using index.search with dummy embedding vector
-        # Because embeddings were already built offline
-        query_vector = np.zeros((1, index.d)).astype("float32")
-        D, I = index.search(query_vector, 100)
+        query_embedding = model.encode([query]).astype("float32")
+        D, I = index.search(query_embedding, 100)
 
-        filtered_results = []
+        ranked_results = []
 
-        for idx in I[0]:
+        for rank, idx in enumerate(I[0]):
             result = metadata[idx]
 
             if year_filter != "All" and result["year"] != year_filter:
@@ -154,18 +157,22 @@ if page == "🔎 Search":
             query_lower = query.lower()
 
             keyword_match = query_lower in text_lower
+            semantic_score = D[0][rank]
 
-            if keyword_match:
-                filtered_results.append(result)
+            hybrid_score = semantic_score - (0.15 if keyword_match else 0)
 
-        if not filtered_results:
+            ranked_results.append((result, hybrid_score, keyword_match))
+
+        if not ranked_results:
             st.warning("No relevant results found.")
         else:
-            st.markdown(f"### Showing {min(len(filtered_results), results_per_page)} relevant sermons")
+            ranked_results.sort(key=lambda x: x[1])
 
-            for result in filtered_results[:results_per_page]:
+            st.markdown(f"### Showing {min(len(ranked_results), results_per_page)} relevant sermons")
 
-                highlighted_text = highlight_text(result["text"], query)
+            for result, score, keyword_match in ranked_results[:results_per_page]:
+
+                highlighted_text = highlight_text(result["text"], query) if keyword_match else result["text"]
 
                 youtube_url = f"https://www.youtube.com/watch?v={result['youtube_id']}&t={int(result['start'])}s"
 
@@ -180,7 +187,7 @@ if page == "🔎 Search":
                 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------
-# SERMON LIBRARY
+# SERMON LIBRARY (UNCHANGED)
 # ---------------------------------------------------
 elif page == "📚 Sermon Library":
 
@@ -204,7 +211,7 @@ elif page == "📚 Sermon Library":
         """, unsafe_allow_html=True)
 
 # ---------------------------------------------------
-# SCRIPTURE EXPLORER
+# SCRIPTURE EXPLORER (UNCHANGED)
 # ---------------------------------------------------
 elif page == "📖 Scripture Explorer":
 
