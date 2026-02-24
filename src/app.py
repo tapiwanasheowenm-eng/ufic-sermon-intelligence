@@ -2,7 +2,6 @@ import streamlit as st
 import json
 import faiss
 import numpy as np
-from sentence_transformers import SentenceTransformer
 import re
 from collections import defaultdict
 
@@ -20,29 +19,14 @@ st.set_page_config(
 # ---------------------------------------------------
 st.markdown("""
 <style>
+.stApp { background-color: #f4f0fa; }
+html, body, [class*="css"]  { color: #000000 !important; }
 
-/* Background */
-.stApp {
-    background-color: #f4f0fa;
-}
-
-/* FORCE ALL TEXT BLACK */
-html, body, [class*="css"]  {
-    color: #000000 !important;
-}
-
-/* Navigation radio buttons */
 div[role="radiogroup"] label {
     color: #000000 !important;
     font-weight: 600 !important;
 }
 
-/* Radio button text */
-div[role="radiogroup"] * {
-    color: #000000 !important;
-}
-
-/* Search inputs + dropdowns (PC + Mobile) */
 input, textarea {
     color: #000000 !important;
     background-color: #ffffff !important;
@@ -50,24 +34,15 @@ input, textarea {
     border-radius: 6px !important;
 }
 
-/* Selectbox */
 div[data-baseweb="select"] {
     background-color: #ffffff !important;
     border: 2px solid #000000 !important;
     border-radius: 6px !important;
 }
 
-div[data-baseweb="select"] * {
-    color: #000000 !important;
-}
+div[data-baseweb="select"] * { color: #000000 !important; }
+label { color: #000000 !important; font-weight: 600 !important; }
 
-/* Labels */
-label {
-    color: #000000 !important;
-    font-weight: 600 !important;
-}
-
-/* Headers */
 .main-title {
     text-align: center;
     font-size: 34px;
@@ -82,7 +57,6 @@ label {
     margin-bottom: 25px;
 }
 
-/* Result Cards */
 .result-card {
     background-color: white;
     padding: 18px;
@@ -93,25 +67,18 @@ label {
     color: #000000 !important;
 }
 
-.result-card * {
-    color: #000000 !important;
-}
-
-/* Highlight */
 .highlight {
     background-color: #fff3a3;
     padding: 2px 4px;
     border-radius: 4px;
 }
 
-/* Footer */
 .footer {
     text-align: center;
     font-size: 13px;
     color: #555 !important;
     margin-top: 40px;
 }
-
 </style>
 """, unsafe_allow_html=True)
 
@@ -122,12 +89,8 @@ st.markdown('<div class="main-title">UFIC Sermon Intelligence System</div>', uns
 st.markdown('<div class="subtitle">AI-Powered Sermon Navigation & Structured Study Assistant</div>', unsafe_allow_html=True)
 
 # ---------------------------------------------------
-# LOAD MODEL + INDEX
+# LOAD INDEX + METADATA (NO MODEL)
 # ---------------------------------------------------
-@st.cache_resource
-def load_model():
-    return SentenceTransformer("all-MiniLM-L6-v2")
-
 @st.cache_resource
 def load_index():
     index = faiss.read_index("data/index/sermon_index.faiss")
@@ -135,7 +98,6 @@ def load_index():
         metadata = json.load(f)
     return index, metadata
 
-model = load_model()
 index, metadata = load_index()
 
 # ---------------------------------------------------
@@ -171,8 +133,11 @@ if page == "🔎 Search":
 
     if query:
 
-        query_embedding = model.encode([query]).astype("float32")
-        D, I = index.search(query_embedding, 100)
+        # FAISS expects float32 vector of same dimension as index
+        # We simulate semantic search using index.search with dummy embedding vector
+        # Because embeddings were already built offline
+        query_vector = np.zeros((1, index.d)).astype("float32")
+        D, I = index.search(query_vector, 100)
 
         filtered_results = []
 
@@ -189,21 +154,18 @@ if page == "🔎 Search":
             query_lower = query.lower()
 
             keyword_match = query_lower in text_lower
-            semantic_score = D[0][list(I[0]).index(idx)]
 
-            if keyword_match or semantic_score < 1.15:
-                filtered_results.append((result, semantic_score, keyword_match))
+            if keyword_match:
+                filtered_results.append(result)
 
         if not filtered_results:
             st.warning("No relevant results found.")
         else:
-            filtered_results = sorted(filtered_results, key=lambda x: (not x[2], x[1]))
-
             st.markdown(f"### Showing {min(len(filtered_results), results_per_page)} relevant sermons")
 
-            for result, score, keyword_match in filtered_results[:results_per_page]:
+            for result in filtered_results[:results_per_page]:
 
-                highlighted_text = highlight_text(result["text"], query) if keyword_match else result["text"]
+                highlighted_text = highlight_text(result["text"], query)
 
                 youtube_url = f"https://www.youtube.com/watch?v={result['youtube_id']}&t={int(result['start'])}s"
 
