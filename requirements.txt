@@ -1,7 +1,5 @@
 streamlit==1.32.2
-altair==4.2.2
-pandas
-numpy
-faiss-cpu
-sentence-transformers
-scikit-learn
+faiss-cpu==1.13.2
+numpy==1.26.4
+pandas==2.3.3
+python-dateutil==2.9.0.post0
